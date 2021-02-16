@@ -1,5 +1,6 @@
 #include "receiver.h"
 
+#include <errno.h>
 #include <assert.h>
 #include <SDL2/SDL_clipboard.h>
 
@@ -77,7 +78,7 @@ run_receiver(void *data) {
         ssize_t r = net_recv(receiver->control_socket, buf + head,
                              DEVICE_MSG_MAX_SIZE - head);
         if (r <= 0) {
-            LOGD("Receiver stopped");
+            LOGD("Receiver stopped %zd %s", r, strerror(errno));
             break;
         }
 

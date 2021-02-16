@@ -253,7 +253,7 @@ log_level_to_server_string(enum sc_log_level level) {
 }
 
 static process_t
-execute_server(struct server *server, const struct server_params *params) {
+execute_server_adb(struct server *server, const struct server_params *params) {
     char max_size_string[6];
     char bit_rate_string[11];
     char max_fps_string[6];
@@ -311,9 +311,74 @@ execute_server(struct server *server, const struct server_params *params) {
     return adb_execute(server->serial, cmd, sizeof(cmd) / sizeof(cmd[0]));
 }
 
+static process_t
+execute_server_curl(struct server *server, const struct server_params *params) {
+    char max_size_string[6];
+    char bit_rate_string[11];
+    char max_fps_string[6];
+    char lock_video_orientation_string[5];
+    char display_id_string[6];
+    char url[1024];
+    sprintf(max_size_string, "%"PRIu16, params->max_size);
+    sprintf(bit_rate_string, "%"PRIu32, params->bit_rate);
+    sprintf(max_fps_string, "%"PRIu16, params->max_fps);
+    sprintf(lock_video_orientation_string, "%"PRIi8, params->lock_video_orientation);
+    sprintf(display_id_string, "%"PRIu16, params->display_id);
+    snprintf(url, sizeof(url), 
+        "http://%s:%d/command/startScrcpy/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s", 
+        server->ip, server->port_range.first,
+        SCRCPY_VERSION,
+        log_level_to_server_string(params->log_level),
+        max_size_string,
+        bit_rate_string,
+        max_fps_string,
+        lock_video_orientation_string,
+        "true",
+        params->crop ? params->crop : "-",
+        "true", // always send frame meta (packet boundaries + timestamp)
+        params->control ? "true" : "false",
+        display_id_string,
+        params->show_touches ? "true" : "false",
+        params->stay_awake ? "true" : "false",
+        params->codec_options ? params->codec_options : "-",
+        params->encoder_name ? params->encoder_name : "-");
+
+    const char *cmd[3];
+    process_t process;
+    cmd[0] = "curl";
+    cmd[1] = url;
+    cmd[2] = NULL;
+    printf("%s\n", url);
+    enum process_result r = cmd_execute(cmd, &process);
+    if (r != PROCESS_SUCCESS) {
+        return PROCESS_NONE;
+    }
+    return process;
+}
+
+static process_t
+stop_server_curl(struct server *server) {
+    char url[1024];
+    snprintf(url, sizeof(url), 
+        "http://%s:%d/command/stopScrcpy/", 
+        server->ip, server->port_range.first);
+
+    const char *cmd[3];
+    process_t process;
+    cmd[0] = "curl";
+    cmd[1] = url;
+    cmd[2] = NULL;
+    printf("%s\n", url);
+    enum process_result r = cmd_execute(cmd, &process);
+    if (r != PROCESS_SUCCESS) {
+        return PROCESS_NONE;
+    }
+    return process;
+}
+
 static socket_t
-connect_and_read_byte(uint16_t port) {
-    socket_t socket = net_connect(IPV4_LOCALHOST, port);
+connect_and_read_byte(uint32_t addr, uint16_t port) {
+    socket_t socket = net_connect(addr, port);
     if (socket == INVALID_SOCKET) {
         return INVALID_SOCKET;
     }
@@ -330,10 +395,10 @@ connect_and_read_byte(uint16_t port) {
 }
 
 static socket_t
-connect_to_server(uint16_t port, uint32_t attempts, uint32_t delay) {
+connect_to_server(uint32_t addr, uint16_t port, uint32_t attempts, uint32_t delay) {
     do {
         LOGD("Remaining connection attempts: %d", (int) attempts);
-        socket_t socket = connect_and_read_byte(port);
+        socket_t socket = connect_and_read_byte(addr, port);
         if (socket != INVALID_SOCKET) {
             // it worked!
             return socket;
@@ -357,6 +422,8 @@ close_socket(socket_t socket) {
 bool
 server_init(struct server *server) {
     server->serial = NULL;
+    server->ip = NULL;
+    server->addr = 0;
     server->process = PROCESS_NONE;
     server->wait_server_thread = NULL;
     atomic_flag_clear_explicit(&server->server_socket_closed,
@@ -423,19 +490,27 @@ server_start(struct server *server, const char *serial,
         }
     }
 
-    if (!push_server(serial)) {
-        goto error1;
-    }
+    if (server->addr) {
+        // server will connect to our server socket
+        server->process = execute_server_curl(server, params);
+        if (server->process == PROCESS_NONE) {
+            goto error2;
+        }
+    }else {
+        if (!push_server(serial)) {
+            goto error1;
+        }
 
-    if (!enable_tunnel_any_port(server, params->port_range,
-                                params->force_adb_forward)) {
-        goto error1;
-    }
+        if (!enable_tunnel_any_port(server, params->port_range,
+                                    params->force_adb_forward)) {
+            goto error1;
+        }
 
-    // server will connect to our server socket
-    server->process = execute_server(server, params);
-    if (server->process == PROCESS_NONE) {
-        goto error2;
+        // server will connect to our server socket
+        server->process = execute_server_adb(server, params);
+        if (server->process == PROCESS_NONE) {
+            goto error2;
+        }
     }
 
     // If the server process dies before connecting to the server socket, then
@@ -465,7 +540,11 @@ error2:
         (void) was_closed;
         close_socket(server->server_socket);
     }
-    disable_tunnel(server);
+    if (server->addr) {
+        stop_server_curl(server);
+    }else{
+        disable_tunnel(server);
+    }
 error1:
     SDL_free(server->serial);
     return false;
@@ -473,7 +552,7 @@ error1:
 
 bool
 server_connect_to(struct server *server) {
-    if (!server->tunnel_forward) {
+    if (!server->tunnel_forward && !server->addr) {
         server->video_socket = net_accept(server->server_socket);
         if (server->video_socket == INVALID_SOCKET) {
             return false;
@@ -491,26 +570,41 @@ server_connect_to(struct server *server) {
             close_socket(server->server_socket);
             // otherwise, it is closed by run_wait_server()
         }
-    } else {
-        uint32_t attempts = 100;
-        uint32_t delay = 100; // ms
+    } else if(server->addr) {
+        uint32_t attempts = 12;
+        uint32_t delay = 1000; // ms
         server->video_socket =
-            connect_to_server(server->local_port, attempts, delay);
+            connect_to_server(server->addr==0?IPV4_LOCALHOST:server->addr, server->port_range.last, attempts, delay);
         if (server->video_socket == INVALID_SOCKET) {
             return false;
         }
 
         // we know that the device is listening, we don't need several attempts
         server->control_socket =
-            net_connect(IPV4_LOCALHOST, server->local_port);
+            net_connect(server->addr==0?IPV4_LOCALHOST:server->addr, server->port_range.last);
         if (server->control_socket == INVALID_SOCKET) {
             return false;
         }
-    }
+    } else {
+        uint32_t attempts = 100;
+        uint32_t delay = 100; // ms
+        server->video_socket =
+            connect_to_server(server->addr==0?IPV4_LOCALHOST:server->addr, server->local_port, attempts, delay);
+        if (server->video_socket == INVALID_SOCKET) {
+            return false;
+        }
 
-    // we don't need the adb tunnel anymore
-    disable_tunnel(server); // ignore failure
-    server->tunnel_enabled = false;
+        // we know that the device is listening, we don't need several attempts
+        server->control_socket =
+            net_connect(server->addr==0?IPV4_LOCALHOST:server->addr, server->local_port);
+        if (server->control_socket == INVALID_SOCKET) {
+            return false;
+        }
+
+        // we don't need the adb tunnel anymore
+        disable_tunnel(server); // ignore failure
+        server->tunnel_enabled = false;
+    }
 
     return true;
 }
@@ -530,7 +624,7 @@ server_stop(struct server *server) {
 
     assert(server->process != PROCESS_NONE);
 
-    if (server->tunnel_enabled) {
+    if (server->tunnel_enabled && !server->addr) {
         // ignore failure
         disable_tunnel(server);
     }
@@ -563,6 +657,7 @@ server_stop(struct server *server) {
 void
 server_destroy(struct server *server) {
     SDL_free(server->serial);
+    SDL_free(server->ip);
     SDL_DestroyCond(server->process_terminated_cond);
     SDL_DestroyMutex(server->mutex);
 }

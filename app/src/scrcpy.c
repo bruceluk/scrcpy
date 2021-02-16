@@ -308,6 +308,11 @@ scrcpy(const struct scrcpy_options *options) {
         return false;
     }
 
+    if(options->device) {
+        server.ip = SDL_strdup(options->device);
+        server.addr = net_addr(options->device);
+    }
+
     bool ret = false;
 
     bool server_started = false;

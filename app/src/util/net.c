@@ -32,9 +32,10 @@ net_connect(uint32_t addr, uint16_t port) {
     sin.sin_family = AF_INET;
     sin.sin_addr.s_addr = htonl(addr);
     sin.sin_port = htons(port);
-
+    
     if (connect(sock, (SOCKADDR *) &sin, sizeof(sin)) == SOCKET_ERROR) {
         perror("connect");
+        
         net_close(sock);
         return INVALID_SOCKET;
     }
@@ -144,4 +145,10 @@ net_close(socket_t socket) {
 #else
     return !close(socket);
 #endif
+}
+
+
+uint32_t
+net_addr(const char* ip) {
+    return ntohl(inet_addr(ip));
 }

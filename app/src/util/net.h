@@ -54,4 +54,7 @@ net_shutdown(socket_t socket, int how);
 bool
 net_close(socket_t socket);
 
+uint32_t
+net_addr(const char* ip);
+
 #endif

@@ -15,6 +15,8 @@
 
 struct server {
     char *serial;
+    char *ip;
+    uint32_t addr;
     process_t process;
     SDL_Thread *wait_server_thread;
     atomic_flag server_socket_closed;
