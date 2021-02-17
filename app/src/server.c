@@ -311,7 +311,7 @@ execute_server_adb(struct server *server, const struct server_params *params) {
     return adb_execute(server->serial, cmd, sizeof(cmd) / sizeof(cmd[0]));
 }
 
-static process_t
+static enum process_result
 execute_server_curl(struct server *server, const struct server_params *params) {
     char max_size_string[6];
     char bit_rate_string[11];
@@ -343,37 +343,43 @@ execute_server_curl(struct server *server, const struct server_params *params) {
         params->codec_options ? params->codec_options : "-",
         params->encoder_name ? params->encoder_name : "-");
 
-    const char *cmd[3];
-    process_t process;
-    cmd[0] = "curl";
-    cmd[1] = url;
-    cmd[2] = NULL;
-    printf("%s\n", url);
-    enum process_result r = cmd_execute(cmd, &process);
-    if (r != PROCESS_SUCCESS) {
-        return PROCESS_NONE;
+    char buffer[1024];
+    int ret = curl_get(url, buffer, sizeof(buffer));
+    if (ret > 0 && strstr(buffer, "success")) {
+        if((size_t)ret >= sizeof(buffer)) {
+            buffer[sizeof(buffer)-1] = '\0';
+        }else{
+            buffer[ret] = '\0';
+        }
+        printf("%s\n", buffer);
+        if (ret > 0 && strstr(buffer, "success")) {
+            return PROCESS_SUCCESS;
+        }
     }
-    return process;
+    return PROCESS_ERROR_GENERIC;
 }
 
-static process_t
+static enum process_result
 stop_server_curl(struct server *server) {
     char url[1024];
     snprintf(url, sizeof(url), 
         "http://%s:%d/command/stopScrcpy/", 
         server->ip, server->port_range.first);
 
-    const char *cmd[3];
-    process_t process;
-    cmd[0] = "curl";
-    cmd[1] = url;
-    cmd[2] = NULL;
-    printf("%s\n", url);
-    enum process_result r = cmd_execute(cmd, &process);
-    if (r != PROCESS_SUCCESS) {
-        return PROCESS_NONE;
+    char buffer[1024];
+    int ret = curl_get(url, buffer, sizeof(buffer));
+    if (ret > 0 && strstr(buffer, "success")) {
+        if((size_t)ret >= sizeof(buffer)) {
+            buffer[sizeof(buffer)-1] = '\0';
+        }else{
+            buffer[ret] = '\0';
+        }
+        printf("%s\n", buffer);
+        if (ret > 0 && strstr(buffer, "success")) {
+            return PROCESS_SUCCESS;
+        }
     }
-    return process;
+    return PROCESS_ERROR_GENERIC;
 }
 
 static socket_t
@@ -492,8 +498,7 @@ server_start(struct server *server, const char *serial,
 
     if (server->addr) {
         // server will connect to our server socket
-        server->process = execute_server_curl(server, params);
-        if (server->process == PROCESS_NONE) {
+        if (execute_server_curl(server, params) != PROCESS_SUCCESS) {
             goto error2;
         }
     }else {

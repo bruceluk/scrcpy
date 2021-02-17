@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <curl/curl.h>
 
 #include "config.h"
 #include "common.h"
@@ -229,3 +230,54 @@ process_check_success(process_t proc, const char *name) {
     }
     return true;
 }
+
+struct curl_buffer {
+    char  *buffer;
+    size_t len;
+    size_t pos;
+};
+
+size_t curl_receive_data(void *buffer, size_t size, size_t nmemb, struct curl_buffer *buff) {
+    if(buff->pos >= buff->len) {
+        return 0;
+    }else if (size*nmemb < buff->len-buff->pos) {
+        memcpy(buff->buffer+buff->pos, buffer, size*nmemb);
+        buff->pos += size*nmemb;
+        return size; 
+    }else{
+        size_t remain = buff->len-buff->pos;
+        memcpy(buff->buffer+buff->pos, buffer, remain);
+        buff->pos = buff->len;
+        return remain;
+    }
+}
+
+int 
+curl_get(const char* url, char* buffer, size_t buff_len) {
+    struct curl_buffer buff;
+    buff.buffer = buffer;
+    buff.len = buff_len;
+    buff.pos = 0;
+
+    curl_global_init(CURL_GLOBAL_ALL);
+    CURL *curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_receive_data);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &buff);
+    
+    long http_code = 0;
+    CURLcode res = curl_easy_perform(curl);
+    curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code == 200 && res != CURLE_ABORTED_BY_CALLBACK) {
+        curl_easy_cleanup(curl);
+        curl_global_cleanup();
+        return buff.pos;
+    } else
+    {
+        curl_easy_cleanup(curl);
+        curl_global_cleanup();
+        return -1;
+    }
+}
+
+

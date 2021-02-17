@@ -90,4 +90,7 @@ get_executable_path(void);
 bool
 is_regular_file(const char *path);
 
+int 
+curl_get(const char* url, char* buffer, size_t buff_len);
+
 #endif
