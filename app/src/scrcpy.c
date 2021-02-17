@@ -308,8 +308,8 @@ scrcpy(const struct scrcpy_options *options) {
         return false;
     }
 
-    if(options->device) {
-        server.ip = SDL_strdup(options->device);
+    if(options->device && options->url) {
+        server.url = SDL_strdup(options->url);
         server.addr = net_addr(options->device);
         server.direct = true;
     }

@@ -325,8 +325,8 @@ execute_server_curl(struct server *server, const struct server_params *params) {
     sprintf(lock_video_orientation_string, "%"PRIi8, params->lock_video_orientation);
     sprintf(display_id_string, "%"PRIu16, params->display_id);
     snprintf(url, sizeof(url), 
-        "http://%s:%d/command/startScrcpy/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s", 
-        server->ip, server->port_range.first,
+        "%s/startScrcpy/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s", 
+        server->url, 
         SCRCPY_VERSION,
         log_level_to_server_string(params->log_level),
         max_size_string,
@@ -365,8 +365,8 @@ static enum process_result
 stop_server_curl(struct server *server) {
     char url[1024];
     snprintf(url, sizeof(url), 
-        "http://%s:%d/command/stopScrcpy/", 
-        server->ip, server->port_range.first);
+        "%s/stopScrcpy/", 
+        server->url);
     LOGI("%s\n", url);
 
     char buffer[1024];
@@ -431,7 +431,7 @@ close_socket(socket_t socket) {
 bool
 server_init(struct server *server) {
     server->serial = NULL;
-    server->ip = NULL;
+    server->url = NULL;
     server->addr = 0;
     server->process = PROCESS_NONE;
     server->wait_server_thread = NULL;
@@ -565,14 +565,14 @@ server_connect_to(struct server *server) {
         uint32_t attempts = 12;
         uint32_t delay = 1000; // ms
         server->video_socket =
-            connect_to_server(server->addr, server->port_range.last, attempts, delay);
+            connect_to_server(server->addr, server->port_range.first, attempts, delay);
         if (server->video_socket == INVALID_SOCKET) {
             return false;
         }
 
         // we know that the device is listening, we don't need several attempts
         server->control_socket =
-            net_connect(server->addr, server->port_range.last);
+            net_connect(server->addr, server->port_range.first);
         if (server->control_socket == INVALID_SOCKET) {
             return false;
         }
@@ -674,7 +674,7 @@ server_stop(struct server *server) {
 void
 server_destroy(struct server *server) {
     SDL_free(server->serial);
-    SDL_free(server->ip);
+    SDL_free(server->url);
     SDL_DestroyCond(server->process_terminated_cond);
     SDL_DestroyMutex(server->mutex);
 }

@@ -158,6 +158,9 @@ scrcpy_print_usage(const char *arg0) {
         "    -d, --device ip\n"
         "        The device ip address.\n"
         "\n"
+        "    -u, --url url\n"
+        "        The server startup url prefix.\n"
+        "\n"
         "    --shortcut-mod key[+...]][,...]\n"
         "        Specify the modifiers to use for scrcpy shortcuts.\n"
         "        Possible keys are \"lctrl\", \"rctrl\", \"lalt\", \"ralt\",\n"
@@ -709,6 +712,7 @@ scrcpy_parse_args(struct scrcpy_cli_args *args, int argc, char *argv[]) {
         {"rotation",               required_argument, NULL, OPT_ROTATION},
         {"serial",                 required_argument, NULL, 's'},
         {"device",                 required_argument, NULL, 'd'},
+        {"url",                    required_argument, NULL, 'u'},
         {"shortcut-mod",           required_argument, NULL, OPT_SHORTCUT_MOD},
         {"show-touches",           no_argument,       NULL, 't'},
         {"stay-awake",             no_argument,       NULL, 'w'},
@@ -730,7 +734,7 @@ scrcpy_parse_args(struct scrcpy_cli_args *args, int argc, char *argv[]) {
     optind = 0; // reset to start from the first argument in tests
 
     int c;
-    while ((c = getopt_long(argc, argv, "b:c:fF:hm:nNp:r:s:d:StTvV:w",
+    while ((c = getopt_long(argc, argv, "b:c:fF:hm:nNp:r:s:d:u:StTvV:w",
                             long_options, NULL)) != -1) {
         switch (c) {
             case 'b':
@@ -797,6 +801,9 @@ scrcpy_parse_args(struct scrcpy_cli_args *args, int argc, char *argv[]) {
                 break;
             case 'd':
                 opts->device = optarg;
+                break;
+            case 'u':
+                opts->url = optarg;
                 break;
             case 'S':
                 opts->turn_screen_off = true;

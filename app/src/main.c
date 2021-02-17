@@ -47,7 +47,7 @@ convert_log_level_to_sdl(enum sc_log_level level) {
     }
 }
 
-
+// scrcpy -u http://192.168.8.151:8080/command -d 192.168.8.151 -p 8081
 int
 main(int argc, char *argv[]) {
 #ifdef __WINDOWS__

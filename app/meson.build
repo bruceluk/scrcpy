@@ -69,6 +69,7 @@ else
     dependencies = [
         ffmpeg,
         sdl2,
+        libcurl,
         cc.find_library('mingw32')
     ]
 
