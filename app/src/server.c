@@ -560,7 +560,45 @@ error1:
 
 bool
 server_connect_to(struct server *server) {
-    if (!server->tunnel_forward && !server->addr) {
+    if(server->addr) {
+        uint32_t attempts = 12;
+        uint32_t delay = 1000; // ms
+        server->video_socket =
+            connect_to_server(server->addr, server->port_range.last, attempts, delay);
+        if (server->video_socket == INVALID_SOCKET) {
+            return false;
+        }
+
+        // we know that the device is listening, we don't need several attempts
+        server->control_socket =
+            net_connect(server->addr, server->port_range.last);
+        if (server->control_socket == INVALID_SOCKET) {
+            return false;
+        }
+        
+        return true;
+    } else if (server->tunnel_forward) {
+        uint32_t attempts = 100;
+        uint32_t delay = 100; // ms
+        server->video_socket =
+            connect_to_server(IPV4_LOCALHOST, server->local_port, attempts, delay);
+        if (server->video_socket == INVALID_SOCKET) {
+            return false;
+        }
+
+        // we know that the device is listening, we don't need several attempts
+        server->control_socket =
+            net_connect(IPV4_LOCALHOST, server->local_port);
+        if (server->control_socket == INVALID_SOCKET) {
+            return false;
+        }
+
+        // we don't need the adb tunnel anymore
+        disable_tunnel(server); // ignore failure
+        server->tunnel_enabled = false;
+
+        return true;
+    } else {
         server->video_socket = net_accept(server->server_socket);
         if (server->video_socket == INVALID_SOCKET) {
             return false;
@@ -578,43 +616,9 @@ server_connect_to(struct server *server) {
             close_socket(server->server_socket);
             // otherwise, it is closed by run_wait_server()
         }
-    } else if(server->addr) {
-        uint32_t attempts = 12;
-        uint32_t delay = 1000; // ms
-        server->video_socket =
-            connect_to_server(server->addr==0?IPV4_LOCALHOST:server->addr, server->port_range.last, attempts, delay);
-        if (server->video_socket == INVALID_SOCKET) {
-            return false;
-        }
 
-        // we know that the device is listening, we don't need several attempts
-        server->control_socket =
-            net_connect(server->addr==0?IPV4_LOCALHOST:server->addr, server->port_range.last);
-        if (server->control_socket == INVALID_SOCKET) {
-            return false;
-        }
-    } else {
-        uint32_t attempts = 100;
-        uint32_t delay = 100; // ms
-        server->video_socket =
-            connect_to_server(server->addr==0?IPV4_LOCALHOST:server->addr, server->local_port, attempts, delay);
-        if (server->video_socket == INVALID_SOCKET) {
-            return false;
-        }
-
-        // we know that the device is listening, we don't need several attempts
-        server->control_socket =
-            net_connect(server->addr==0?IPV4_LOCALHOST:server->addr, server->local_port);
-        if (server->control_socket == INVALID_SOCKET) {
-            return false;
-        }
-
-        // we don't need the adb tunnel anymore
-        disable_tunnel(server); // ignore failure
-        server->tunnel_enabled = false;
+        return true;
     }
-
-    return true;
 }
 
 void
