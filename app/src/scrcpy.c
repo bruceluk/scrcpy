@@ -311,6 +311,7 @@ scrcpy(const struct scrcpy_options *options) {
     if(options->device) {
         server.ip = SDL_strdup(options->device);
         server.addr = net_addr(options->device);
+        server.direct = true;
     }
 
     bool ret = false;

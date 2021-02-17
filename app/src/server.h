@@ -32,6 +32,7 @@ struct server {
     uint16_t local_port; // selected from port_range
     bool tunnel_enabled;
     bool tunnel_forward; // use "adb forward" instead of "adb reverse"
+    bool direct;
 };
 
 struct server_params {

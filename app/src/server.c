@@ -461,6 +461,7 @@ server_init(struct server *server) {
 
     server->tunnel_enabled = false;
     server->tunnel_forward = false;
+    server->direct = false;
 
     return true;
 }
@@ -499,7 +500,7 @@ server_start(struct server *server, const char *serial,
         }
     }
 
-    if (server->addr) {
+    if (server->direct) {
         // server will connect to our server socket
         if (execute_server_curl(server, params) != PROCESS_SUCCESS) {
             goto error2;
@@ -548,7 +549,7 @@ error2:
         (void) was_closed;
         close_socket(server->server_socket);
     }
-    if (server->addr) {
+    if (server->direct) {
         stop_server_curl(server);
     }else{
         disable_tunnel(server);
@@ -560,7 +561,7 @@ error1:
 
 bool
 server_connect_to(struct server *server) {
-    if(server->addr) {
+    if(server->direct) {
         uint32_t attempts = 12;
         uint32_t delay = 1000; // ms
         server->video_socket =
@@ -636,12 +637,12 @@ server_stop(struct server *server) {
 
     assert(server->process != PROCESS_NONE);
 
-    if (server->tunnel_enabled && !server->addr) {
+    if (server->tunnel_enabled && !server->direct) {
         // ignore failure
         disable_tunnel(server);
     }
 
-    if (server->addr) {
+    if (server->direct) {
         stop_server_curl(server);
     }
 
