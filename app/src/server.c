@@ -343,7 +343,7 @@ execute_server_curl(struct server *server, const struct server_params *params) {
         params->codec_options ? params->codec_options : "-",
         params->encoder_name ? params->encoder_name : "-");
 
-    printf("%s\n", url);
+    LOGI("%s\n", url);
 
     char buffer[1024];
     int ret = curl_get(url, buffer, sizeof(buffer));
@@ -353,7 +353,7 @@ execute_server_curl(struct server *server, const struct server_params *params) {
         }else{
             buffer[ret] = '\0';
         }
-        printf("%s\n", buffer);
+        LOGI("%s\n", buffer);
         if (ret > 0 && strstr(buffer, "success")) {
             return PROCESS_SUCCESS;
         }
@@ -367,7 +367,7 @@ stop_server_curl(struct server *server) {
     snprintf(url, sizeof(url), 
         "http://%s:%d/command/stopScrcpy/", 
         server->ip, server->port_range.first);
-    printf("%s\n", url);
+    LOGI("%s\n", url);
 
     char buffer[1024];
     int ret = curl_get(url, buffer, sizeof(buffer));
@@ -377,7 +377,7 @@ stop_server_curl(struct server *server) {
         }else{
             buffer[ret] = '\0';
         }
-        printf("%s\n", buffer);
+        LOGI("%s\n", buffer);
         if (ret > 0 && strstr(buffer, "success")) {
             return PROCESS_SUCCESS;
         }
