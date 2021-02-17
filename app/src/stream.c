@@ -38,7 +38,6 @@ stream_recv_packet(struct stream *stream, AVPacket *packet) {
     uint8_t header[HEADER_SIZE];
     ssize_t r = net_recv_all(stream->socket, header, HEADER_SIZE);
     if (r < HEADER_SIZE) {
-        LOGD("recv fail 1");
         return false;
     }
 
@@ -55,7 +54,6 @@ stream_recv_packet(struct stream *stream, AVPacket *packet) {
     r = net_recv_all(stream->socket, packet->data, len);
     if (r < 0 || ((uint32_t) r) < len) {
         av_packet_unref(packet);
-        LOGD("recv fail 2 %zd %s", r, strerror(errno));
         return false;
     }
 
@@ -231,7 +229,6 @@ run_stream(void *data) {
         bool ok = stream_recv_packet(stream, &packet);
         if (!ok) {
             // end of stream
-            LOGD("End of frames1");
             break;
         }
 
@@ -239,7 +236,6 @@ run_stream(void *data) {
         av_packet_unref(&packet);
         if (!ok) {
             // cannot process packet (error already logged)
-            LOGD("End of frames2");
             break;
         }
     }
