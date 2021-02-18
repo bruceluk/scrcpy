@@ -237,7 +237,8 @@ struct curl_buffer {
     size_t pos;
 };
 
-size_t curl_receive_data(void *buffer, size_t size, size_t nmemb, struct curl_buffer *buff) {
+size_t curl_receive_data(char *buffer, size_t size, size_t nmemb, void *buffin) {
+    struct curl_buffer* buff = (struct curl_buffer*)buffin;
     if(buff->pos >= buff->len) {
         return 0;
     }else if (size*nmemb < buff->len-buff->pos) {
